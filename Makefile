@@ -229,6 +229,18 @@ profclean:
 	find . -name '*.gc*' -type f | xargs $(RM)
 	$(RM) app*.info
 
+run-tests: test test-rss
+	cd test
+	./test
+	./test-rss
+
+check-coverage:
+	./test/lcov-run-all.sh
+
+report-coverage: check-coverage
+	rm -rf html
+	genhtml -o html apptotal.info
+
 # miscellaneous stuff
 
 config: config.mk

@@ -10,3 +10,5 @@ test/testlog.txt
 xlicense.h
 html/*
 *.info
+*.gcno
+*.gcda
