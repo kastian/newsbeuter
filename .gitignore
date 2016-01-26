@@ -8,7 +8,6 @@ test/test
 test/test-rss
 test/testlog.txt
 xlicense.h
-html/*
-*.info
+*.gcov
 *.gcno
 *.gcda

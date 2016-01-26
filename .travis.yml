@@ -5,6 +5,7 @@ os:
 install:
     - cd ${TRAVIS_BUILD_DIR}
     - ./travis-get-deps.sh
+
 language: cpp
 compiler:
     - gcc
@@ -14,3 +15,10 @@ script:
     - cd ${TRAVIS_BUILD_DIR}
     - make all test-rss
     - cd test && ./test-rss
+
+after_success:
+    - cd ${TRAVIS_BUILD_DIR}
+    - make distclean
+    - make PROFILE=1 all test-rss
+    - cd test && ./test-rss
+    - cd ${TRAVIS_BUILD_DIR} && ./submit-to-coveralls.sh

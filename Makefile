@@ -125,7 +125,7 @@ clean-doc:
 clean: clean-newsbeuter clean-podbeuter clean-libbeuter clean-libfilter clean-doc clean-librsspp
 	$(RM) $(STFLHDRS) xlicense.h
 
-distclean: clean clean-mo test-clean
+distclean: clean clean-mo test-clean profclean
 	$(RM) core *.core core.* config.mk
 
 doc:
@@ -226,20 +226,8 @@ test-clean:
 	$(RM) test/test test/test.o test/test-rss test/test-rss.o
 
 profclean:
-	find . -name '*.gc*' -type f | xargs $(RM)
+	find . -name '*.gc*' -type f -print0 | xargs -0 $(RM) --
 	$(RM) app*.info
-
-run-tests: test test-rss
-	cd test
-	./test
-	./test-rss
-
-check-coverage:
-	./test/lcov-run-all.sh
-
-report-coverage: check-coverage
-	rm -rf html
-	genhtml -o html apptotal.info
 
 # miscellaneous stuff
 
