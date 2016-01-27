@@ -5,6 +5,7 @@ os:
 install:
     - cd ${TRAVIS_BUILD_DIR}
     - ./travis-get-deps.sh
+    - pip install --user codecov
 
 language: cpp
 compiler:
@@ -21,4 +22,4 @@ after_success:
     - make distclean
     - make PROFILE=1 all test-rss
     - cd test && ./test-rss
-    - cd ${TRAVIS_BUILD_DIR} && ./submit-to-coveralls.sh
+    - codecov --gcov-glob '*/test/*'
