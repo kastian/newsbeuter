@@ -1,8 +1,12 @@
 #ifndef TEST_HELPERS_H_
 #define TEST_HELPERS_H_
 
-#include <cstdio>
 #include <unistd.h>
+#include <cstdlib>
+#include <cstring>
+#include <sys/stat.h>
+#include <string>
+#include <exception>
 
 namespace TestHelpers {
 
@@ -15,28 +19,27 @@ namespace TestHelpers {
 		public:
 			class tempfileexception : public std::exception {
 				public:
+					explicit tempfileexception(const char* error) {
+						msg  = "failed to create a tempdir: ";
+						msg += error;
+					};
+
 					virtual const char* what() const throw() {
-						return "tmpnam() failed to create a temporary filename";
+						return msg.c_str();
 					}
+
+				private:
+					std::string msg;
 			};
 
 			TempFile() {
-				char path[L_tmpnam];
-				/* Generate a temporary filename. This line will cause
-				 * a warning at the linking state. It's fine: we don't expect
-				 * our tests to be run in adverse situations where someone will
-				 * try to steal the file from under us; and our testing
-				 * framework isn't threaded, so there's no risk of different
-				 * TempFile objects racing for a filename or something. */
-				if (tmpnam(path)) {
-					filepath = path;
-				} else {
-					throw tempfileexception();
-				}
+				init_tempdir();
+				init_file();
 			}
 
 			~TempFile() {
 				::unlink(filepath.c_str());
+				::rmdir(tempdir.c_str());
 			}
 
 			const std::string getPath() {
@@ -44,6 +47,70 @@ namespace TestHelpers {
 			}
 
 		private:
+			void init_tempdir() {
+				char* tmpdir_p = ::getenv("TMPDIR");
+
+				if (tmpdir_p) {
+					tempdir = tmpdir_p;
+				} else {
+					tempdir = "/tmp/";
+				}
+
+				tempdir += "/newsbeuter-tests/";
+
+				int status = mkdir(tempdir.c_str(), S_IRWXU);
+				if (status != 0) {
+					// The directory already exists. That's fine, though, but
+					// only as long as it has all the properties we need.
+
+					int saved_errno = errno;
+					bool success = false;
+
+					if (saved_errno == EEXIST) {
+						struct stat buffer;
+						if (lstat(tempdir.c_str(), &buffer) == 0) {
+							if (   buffer.st_mode & S_IRUSR
+								&& buffer.st_mode & S_IWUSR
+								&& buffer.st_mode & S_IXUSR)
+							{
+								success = true;
+							}
+						}
+					}
+
+					if (!success) {
+						throw tempfileexception(strerror(saved_errno));
+					}
+				}
+			};
+
+			void init_file() {
+				bool success = false;
+				unsigned int tries = 0;
+
+				// Make 10 attempts at generating a filename that doesn't exist
+				do {
+					tries++;
+
+					// This isn't thread-safe, but we don't care because Catch
+					// doesn't let us run tests in multiple threads anyway.
+					std::string filename = std::to_string(rand());
+					filepath = tempdir + "/" + filename;
+
+					struct stat buffer;
+					if (lstat(filepath.c_str(), &buffer) != 0) {
+						if (errno == ENOENT) {
+							success = true;
+						}
+					}
+				} while (!success && tries < 10);
+
+				if (!success) {
+					throw tempfileexception("failed to generate unique filename");
+				}
+			}
+
+			std::string tempdir;
 			std::string filepath;
 	};
 }

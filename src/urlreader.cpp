@@ -47,7 +47,7 @@ void file_urlreader::reload() {
 	if (f.is_open()) {
 		std::string line;
 		while (!f.eof()) {
-			getline(f,line);
+			std::getline(f,line);
 			if (line.length() > 0 && line[0] != '#') {
 				std::vector<std::string> tokens = utils::tokenize_quoted(line);
 				if (!tokens.empty()) {
@@ -101,8 +101,6 @@ void opml_urlreader::reload() {
 	urls.clear();
 	tags.clear();
 	alltags.clear();
-
-	std::string user_agent = utils::get_useragent(cfg);
 
 	std::vector<std::string> urls = utils::tokenize_quoted(this->get_source(), " ");
 

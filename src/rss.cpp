@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <curl/curl.h>
 #include <sys/utsname.h>
+#include <time.h>
 #include <htmlrenderer.h>
 
 #include <langinfo.h>
@@ -29,7 +30,10 @@ rss_item::rss_item(cache * c) : pubDate_(0), unread_(true), ch(c), enqueued_(fal
 rss_item::~rss_item() {
 }
 
-rss_feed::rss_feed(cache * c) : ch(c), empty(true), is_rtl_(false), idx(0), status_(dl_status::SUCCESS) {
+rss_feed::rss_feed(cache * c)
+	: pubDate_(0), ch(c), empty(true), is_rtl_(false), idx(0), order(0),
+	  status_(dl_status::SUCCESS)
+{
 }
 
 rss_feed::~rss_feed() {
@@ -271,9 +275,9 @@ std::string rss_item::get_attribute(const std::string& attribname) {
 	else if (attribname == "flags")
 		return flags();
 	else if (attribname == "age")
-		return utils::to_string<unsigned int>((time(nullptr) - pubDate_timestamp()) / 86400);
+		return std::to_string((time(nullptr) - pubDate_timestamp()) / 86400);
 	else if (attribname == "articleindex")
-		return utils::to_string<unsigned int>(idx);
+		return std::to_string(idx);
 
 	// if we have a feed, then forward the request
 	std::shared_ptr<rss_feed> feedptr = feedptr_.lock();
@@ -341,13 +345,13 @@ std::string rss_feed::get_attribute(const std::string& attribname) {
 	else if (attribname == "rssurl")
 		return rssurl();
 	else if (attribname == "unread_count") {
-		return utils::to_string<unsigned int>(unread_item_count());
+		return std::to_string(unread_item_count());
 	} else if (attribname == "total_count") {
-		return utils::to_string<unsigned int>(items_.size());
+		return std::to_string(items_.size());
 	} else if (attribname == "tags") {
 		return get_tags();
 	} else if (attribname == "feedindex") {
-		return utils::to_string<unsigned int>(idx);
+		return std::to_string(idx);
 	}
 	return "";
 }
@@ -473,13 +477,10 @@ void rss_feed::set_rssurl(const std::string& u) {
 	if (rssurl_.substr(0,6) == "query:") {
 		/* Query string looks like this:
 		 *
-		 * "query:Title:unread = \"yes\" and age between 0:7" tag1 "tag two"
+		 * query:Title:unread = "yes" and age between 0:7
 		 *
-		 * At this point, we're only interested in the first part enclosed in
-		 * the quotes. Thus, we first tokenize using space as delimiter... */
-		std::vector<std::string> tokens = utils::tokenize_quoted(u, " ");
-		// and then further split by colon, so as to extract title and query
-		tokens = utils::tokenize_quoted(u, ":");
+		 * So we split by colons to get title and the query itself. */
+		std::vector<std::string> tokens = utils::tokenize_quoted(u, ":");
 
 		if (tokens.size() < 3) {
 			throw _s("too few arguments");

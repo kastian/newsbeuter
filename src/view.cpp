@@ -43,6 +43,7 @@
 #include <string.h>
 #include <ncurses.h>
 #include <curses.h>
+#include <time.h>
 
 
 extern "C" {
@@ -117,7 +118,7 @@ void view::set_bindings(std::shared_ptr<formaction> fa) {
 }
 
 std::shared_ptr<formaction> view::get_current_formaction() {
-	if (formaction_stack.size() > 0 && current_formaction < formaction_stack.size()) {
+	if (formaction_stack.size() > 0 && current_formaction < formaction_stack_size()) {
 		return formaction_stack[current_formaction];
 	}
 	return std::shared_ptr<formaction>();
@@ -149,7 +150,7 @@ void view::run() {
 	std::vector<macrocmd> macrocmds;
 
 	// create feedlist
-	std::shared_ptr<feedlist_formaction> feedlist(new feedlist_formaction(this, feedlist_str));
+	auto feedlist = std::make_shared<feedlist_formaction>(this, feedlist_str);
 	set_bindings(feedlist);
 	feedlist->set_regexmanager(rxman);
 	feedlist->set_tags(tags);
@@ -167,7 +168,7 @@ void view::run() {
 	 * This is the main "event" loop of newsbeuter.
 	 */
 
-	while (formaction_stack.size() > 0) {
+	while (formaction_stack_size() > 0) {
 		// first, we take the current formaction.
 		std::shared_ptr<formaction> fa = get_current_formaction();
 
@@ -331,8 +332,7 @@ void view::open_in_pager(const std::string& filename) {
 		cmdline.append(filename);
 	}
 	stfl::reset();
-	LOG(level::DEBUG, "view::open_in_pager: running `%s'", cmdline);
-	::system(cmdline.c_str());
+	utils::run_interactively(cmdline, "view::open_in_pager");
 	pop_current_formaction();
 }
 
@@ -359,8 +359,7 @@ void view::open_in_browser(const std::string& url) {
 		cmdline.append("'");
 	}
 	stfl::reset();
-	LOG(level::DEBUG, "view::open_in_browser: running `%s'", cmdline);
-	::system(cmdline.c_str());
+	utils::run_interactively(cmdline, "view::open_in_browser");
 	pop_current_formaction();
 }
 
@@ -457,8 +456,7 @@ void view::push_itemlist(unsigned int pos) {
 }
 
 void view::push_itemview(std::shared_ptr<rss_feed> f, const std::string& guid, const std::string& searchphrase) {
-	std::string pager;
-	if ((pager = cfg->get_configvalue("pager")) == "internal") {
+	if (cfg->get_configvalue("pager") == "internal") {
 		std::shared_ptr<itemlist_formaction> itemlist = std::dynamic_pointer_cast<itemlist_formaction, formaction>(get_current_formaction());
 		assert(itemlist != nullptr);
 		std::shared_ptr<itemview_formaction> itemview(new itemview_formaction(this, itemlist, itemview_str));
@@ -1019,7 +1017,7 @@ void view::clear_eol(std::shared_ptr<formaction> fa) {
 	std::string val = fa->get_form()->get("qna_value");
 	val.erase(pos, val.length());
 	fa->get_form()->set("qna_value", val);
-	fa->get_form()->set("qna_value_pos", utils::to_string<unsigned int>(val.length()));
+	fa->get_form()->set("qna_value_pos", std::to_string(val.length()));
 	LOG(level::DEBUG, "view::clear_eol: cleared to end of line");
 }
 
@@ -1048,7 +1046,7 @@ void view::delete_word(std::shared_ptr<formaction> fa) {
 	val.erase(firstpos, curpos - firstpos);
 	LOG(level::DEBUG, "view::delete_word: after val = %s", val);
 	fa->get_form()->set("qna_value", val);
-	fa->get_form()->set("qna_value_pos", utils::to_string<unsigned int>(firstpos));
+	fa->get_form()->set("qna_value_pos", std::to_string(firstpos));
 }
 
 void view::handle_cmdline_completion(std::shared_ptr<formaction> fa) {
@@ -1073,14 +1071,14 @@ void view::handle_cmdline_completion(std::shared_ptr<formaction> fa) {
 		break;
 	}
 	fa->get_form()->set("qna_value", suggestion);
-	fa->get_form()->set("qna_value_pos", utils::to_string<unsigned int>(suggestion.length()));
+	fa->get_form()->set("qna_value_pos", std::to_string(suggestion.length()));
 	last_fragment = suggestion;
 }
 
 void view::dump_current_form() {
 	std::string formtext = formaction_stack[current_formaction]->get_form()->dump("", "", 0);
 	char fnbuf[128];
-	time_t t = ::time(nullptr);
+	time_t t = time(nullptr);
 	struct tm * stm = localtime(&t);
 	strftime(fnbuf, sizeof(fnbuf), "dumpform-%Y%m%d-%H%M%S.stfl", stm);
 	std::fstream f(fnbuf, std::ios_base::out);

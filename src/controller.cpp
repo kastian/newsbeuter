@@ -801,10 +801,10 @@ void controller::reload_indexes(const std::vector<int>& indexes, bool unattended
 	bool notify_always = cfg.get_configvalue_as_bool("notify-always");
 	if (notify_always || unread_feeds2 != unread_feeds || unread_articles2 != unread_articles) {
 		fmtstr_formatter fmt;
-		fmt.register_fmt('f', utils::to_string<unsigned int>(unread_feeds2));
-		fmt.register_fmt('n', utils::to_string<unsigned int>(unread_articles2));
-		fmt.register_fmt('d', utils::to_string<unsigned int>(unread_articles2 - unread_articles));
-		fmt.register_fmt('D', utils::to_string<unsigned int>(unread_feeds2 - unread_feeds));
+		fmt.register_fmt('f', std::to_string(unread_feeds2));
+		fmt.register_fmt('n', std::to_string(unread_articles2));
+		fmt.register_fmt('d', std::to_string(unread_articles2 - unread_articles));
+		fmt.register_fmt('D', std::to_string(unread_feeds2 - unread_feeds));
 		this->notify(fmt.do_format(cfg.get_configvalue("notify-format")));
 	}
 	if (!unattended)
@@ -911,10 +911,10 @@ void controller::reload_all(bool unattended) {
 		LOG(level::DEBUG, "unread feed count: %d", feed_count);
 
 		fmtstr_formatter fmt;
-		fmt.register_fmt('f', utils::to_string<unsigned int>(unread_feeds2));
-		fmt.register_fmt('n', utils::to_string<unsigned int>(unread_articles2));
-		fmt.register_fmt('d', utils::to_string<unsigned int>(article_count >= 0 ? article_count : 0));
-		fmt.register_fmt('D', utils::to_string<unsigned int>(feed_count >= 0 ? feed_count : 0));
+		fmt.register_fmt('f', std::to_string(unread_feeds2));
+		fmt.register_fmt('n', std::to_string(unread_articles2));
+		fmt.register_fmt('d', std::to_string(article_count >= 0 ? article_count : 0));
+		fmt.register_fmt('D', std::to_string(feed_count >= 0 ? feed_count : 0));
 		this->notify(fmt.do_format(cfg.get_configvalue("notify-format")));
 	}
 }
@@ -1314,8 +1314,7 @@ void controller::edit_urls_file() {
 	v->push_empty_formaction();
 	stfl::reset();
 
-	LOG(level::DEBUG, "controller::edit_urls_file: running `%s'", cmdline);
-	::system(cmdline.c_str());
+	utils::run_interactively(cmdline, "controller::edit_urls_file");
 
 	v->pop_current_formaction();
 
@@ -1354,7 +1353,7 @@ std::string controller::bookmark(
 		if (is_interactive) {
 			v->push_empty_formaction();
 			stfl::reset();
-			::system(cmdline.c_str());
+			utils::run_interactively(cmdline, "controller::bookmark");
 			v->pop_current_formaction();
 			return "";
 		} else {

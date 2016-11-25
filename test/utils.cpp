@@ -181,10 +181,10 @@ TEST_CASE("replace_all()", "[utils]") {
 }
 
 TEST_CASE("to_string()", "[utils]") {
-	REQUIRE(utils::to_string<int>(0) == "0");
-	REQUIRE(utils::to_string<int>(100) == "100");
-	REQUIRE(utils::to_string<unsigned int>(65536) == "65536");
-	REQUIRE(utils::to_string<unsigned int>(65537) == "65537");
+	REQUIRE(std::to_string(0) == "0");
+	REQUIRE(std::to_string(100) == "100");
+	REQUIRE(std::to_string(65536) == "65536");
+	REQUIRE(std::to_string(65537) == "65537");
 }
 
 TEST_CASE("partition_index()", "[utils]") {
@@ -443,5 +443,39 @@ TEST_CASE("utils::make_title extracts possible title from URL") {
 			auto input = "http://example.com/title-with-dashes?a=b&x=y&utf8=✓";
 			REQUIRE(utils::make_title(input) == "Title with dashes");
 		}
+	}
+}
+
+TEST_CASE("remove_soft_hyphens remove all U+00AD characters from a string",
+          "[utils]")
+{
+	SECTION("doesn't do anything if input has no soft hyphens in it") {
+		std::string data = "hello world!";
+		REQUIRE_NOTHROW(utils::remove_soft_hyphens(data));
+		REQUIRE(data == "hello world!");
+	}
+
+	SECTION("removes *all* soft hyphens") {
+		std::string data = "hy\u00ADphen\u00ADa\u00ADtion";
+		REQUIRE_NOTHROW(utils::remove_soft_hyphens(data));
+		REQUIRE(data == "hyphenation");
+	}
+
+	SECTION("removes consequtive soft hyphens") {
+		std::string data = "don't know why any\u00AD\u00ADone would do that";
+		REQUIRE_NOTHROW(utils::remove_soft_hyphens(data));
+		REQUIRE(data == "don't know why anyone would do that");
+	}
+
+	SECTION("removes soft hyphen at the beginning of the line") {
+		std::string data = "\u00ADtion";
+		REQUIRE_NOTHROW(utils::remove_soft_hyphens(data));
+		REQUIRE(data == "tion");
+	}
+
+	SECTION("removes soft hyphen at the end of the line") {
+		std::string data = "over\u00AD";
+		REQUIRE_NOTHROW(utils::remove_soft_hyphens(data));
+		REQUIRE(data == "over");
 	}
 }

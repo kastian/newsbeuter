@@ -1,8 +1,11 @@
 language: cpp
 
 matrix:
+  fast_finish: true
+  allow_failures:
+    - compiler clang-4.0
   include:
-    - compiler: gcc
+    - compiler: gcc-4.9
       os: linux
       addons:
         apt:
@@ -13,7 +16,7 @@ matrix:
       env:
         - COMPILER=g++-4.9
         - GCOV=/usr/bin/gcov-4.9
-    - compiler: gcc
+    - compiler: gcc-5
       os: linux
       addons:
         apt:
@@ -24,7 +27,18 @@ matrix:
       env:
         - COMPILER=g++-5
         - GCOV=/usr/bin/gcov-5
-    - compiler: clang
+    - compiler: gcc-6
+      os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-6
+      env:
+        - COMPILER=g++-6
+        - GCOV=/usr/bin/gcov-6
+    - compiler: clang-3.6
       os: linux
       addons:
         apt:
@@ -36,7 +50,7 @@ matrix:
       env:
         - COMPILER=clang++-3.6
         - GCOV=/usr/bin/gcov
-    - compiler: clang
+    - compiler: clang-3.7
       os: linux
       addons:
         apt:
@@ -47,6 +61,30 @@ matrix:
             - clang-3.7
       env:
         - COMPILER=clang++-3.7
+        - GCOV=/usr/bin/gcov
+    - compiler: clang-3.8
+      os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-precise-3.8
+          packages:
+            - clang-3.8
+      env:
+        - COMPILER=clang++-3.8
+        - GCOV=/usr/bin/gcov
+    - compiler: clang-4.0
+      os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-precise
+          packages:
+            - clang-4.0
+      env:
+        - COMPILER=clang++-4.0
         - GCOV=/usr/bin/gcov
     - compiler: gcc
       os: osx
@@ -72,6 +110,12 @@ install:
 
 script:
   - cd ${TRAVIS_BUILD_DIR}
+  # Compiling with optimizations enabled to get as accurate warnings as
+  # possible. --keep-going is used to process the maximum number of the files
+  # before failing; this will help with debugging build fails that happen on
+  # platforms that the developer doesn't have access to.
+  - CXXFLAGS="-O3" make --keep-going all test
+  - make distclean
   - make PROFILE=1 all test
   - cd test && ./test --order rand
 

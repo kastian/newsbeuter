@@ -12,7 +12,7 @@ namespace newsbeuter {
 history formaction::searchhistory;
 history formaction::cmdlinehistory;
 
-formaction::formaction(view * vv, std::string formstr) : v(vv), f(new stfl::form(formstr)), do_redraw(true) {
+formaction::formaction(view * vv, std::string formstr) : v(vv), f(new stfl::form(formstr)), do_redraw(true), qna_history(nullptr) {
 	if (v) {
 		if (v->get_cfg()->get_configvalue_as_bool("show-keymap-hint") == false) {
 			f->set("showhint", "0");
@@ -109,14 +109,14 @@ void formaction::process_op(operation op, bool automatic, std::vector<std::strin
 		if (qna_history) {
 			std::string entry = qna_history->next();
 			f->set("qna_value", entry);
-			f->set("qna_value_pos", utils::to_string<unsigned int>(entry.length()));
+			f->set("qna_value_pos", std::to_string(entry.length()));
 		}
 		break;
 	case OP_INT_QNA_PREVHIST:
 		if (qna_history) {
 			std::string entry = qna_history->prev();
 			f->set("qna_value", entry);
-			f->set("qna_value_pos", utils::to_string<unsigned int>(entry.length()));
+			f->set("qna_value_pos", std::to_string(entry.length()));
 		}
 		break;
 	case OP_INT_END_QUESTION:

@@ -11,6 +11,8 @@
 #include <pwd.h>
 #include <libgen.h>
 #include <sys/utsname.h>
+#include <unistd.h>
+#include <sys/param.h>
 
 #include <unordered_set>
 #include <unistd.h>
@@ -20,6 +22,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdarg>
+#include <cstdio>
 #include <algorithm>
 
 #include <curl/curl.h>
@@ -257,11 +260,16 @@ bool utils::try_fs_lock(const std::string& lock_file, pid_t & pid) {
 
 	// then we lock it (T_LOCK returns immediately if locking is not possible)
 	if (lockf(fd, F_TLOCK, 0) == 0) {
-		std::string pidtext = utils::to_string<unsigned int>(getpid());
+		std::string pidtext = std::to_string(getpid());
 		// locking successful -> truncate file and write own PID into it
-		ftruncate(fd, 0);
-		write(fd, pidtext.c_str(), pidtext.length());
-		return true;
+		ssize_t written = 0;
+		if (ftruncate(fd, 0) == 0) {
+			written = write(fd, pidtext.c_str(), pidtext.length());
+		}
+		bool success =
+			   (written != -1)
+			&& (static_cast<unsigned int>(written) == pidtext.length());
+		return success;
 	}
 
 	// locking was not successful -> read PID of locking process from it
@@ -385,8 +393,8 @@ std::string utils::convert_text(const std::string& text, const std::string& toco
 std::string utils::get_command_output(const std::string& cmd) {
 	FILE * f = popen(cmd.c_str(), "r");
 	std::string buf;
-	char cbuf[1024];
 	if (f) {
+		char cbuf[1024];
 		size_t s;
 		while ((s = fread(cbuf, 1, sizeof(cbuf), f)) > 0) {
 			buf.append(cbuf, s);
@@ -475,8 +483,12 @@ std::string utils::run_program(char * argv[], const std::string& input) {
 	std::string buf;
 	int ipipe[2];
 	int opipe[2];
-	pipe(ipipe);
-	pipe(opipe);
+	if (pipe(ipipe) != 0) {
+		return "";
+	}
+	if (pipe(opipe) != 0) {
+		return "";
+	}
 
 	int rc = fork();
 	switch (rc) {
@@ -498,12 +510,17 @@ std::string utils::run_program(char * argv[], const std::string& input) {
 	default: {
 		close(ipipe[0]);
 		close(opipe[1]);
-		write(ipipe[1], input.c_str(), input.length());
-		close(ipipe[1]);
-		char cbuf[1024];
-		int rc2;
-		while ((rc2 = read(opipe[0], cbuf, sizeof(cbuf))) > 0) {
-			buf.append(cbuf, rc2);
+		ssize_t written = 0;
+		written = write(ipipe[1], input.c_str(), input.length());
+		if (written != -1) {
+			close(ipipe[1]);
+			char cbuf[1024];
+			int rc2;
+			while ((rc2 = read(opipe[0], cbuf, sizeof(cbuf))) > 0) {
+				buf.append(cbuf, rc2);
+			}
+		} else {
+			close(ipipe[1]);
 		}
 		close(opipe[0]);
 	}
@@ -575,17 +592,6 @@ std::string utils::wstr2str(const std::wstring& wstr) {
 	return result;
 }
 
-template<class T> std::string utils::to_string(T var) {
-	std::stringstream ret;
-	ret << var;
-	return ret.str();
-}
-
-// to avoid linker errors
-template std::string utils::to_string<int>(int var);
-template std::string utils::to_string<unsigned long>(unsigned long var);
-template std::string utils::to_string<unsigned int>(unsigned int var);
-
 std::string utils::absolute_url(const std::string& url, const std::string& link) {
 	xmlChar * newurl = xmlBuildURI((const xmlChar *)link.c_str(), (const xmlChar *)url.c_str());
 	std::string retval;
@@ -629,8 +635,9 @@ unsigned int utils::to_u(
 	return u;
 }
 
-scope_measure::scope_measure(const std::string& func, level ll) : lvl(ll) {
-	funcname = func;
+scope_measure::scope_measure(const std::string& func, level ll)
+	: funcname(func), lvl(ll)
+{
 	gettimeofday(&tv1, nullptr);
 }
 
@@ -1006,7 +1013,7 @@ unsigned int utils::gentabs(const std::string& str) {
 /* Like mkdir(), but creates ancestors (parent directories) if they don't
  * exist. */
 int utils::mkdir_parents(const std::string& p, mode_t mode) {
-	int result;
+	int result = -1;
 
 	/* Have to copy the path because we're going to modify it */
 	char* pathname = (char*)malloc(p.length() + 1);
@@ -1061,6 +1068,44 @@ std::string utils::make_title(const std::string& const_url) {
 		title[0] -= 'a' - 'A';
 	}
 	return title;
+}
+
+int utils::run_interactively(
+		const std::string& command, const std::string& caller)
+{
+	LOG(level::DEBUG, "%s: running `%s'", caller, command);
+
+	int status = ::system(command.c_str());
+
+	if (status == -1) {
+		LOG(level::DEBUG, "%s: couldn't create a child process", caller);
+	} else if (status == 127) {
+		LOG(level::DEBUG, "%s: couldn't run shell", caller);
+	}
+
+	return status;
+}
+
+std::string utils::getcwd() {
+	char cwdtmp[MAXPATHLEN];
+
+	if (::getcwd(cwdtmp, sizeof(cwdtmp)) == NULL) {
+		strncpy(cwdtmp, strerror(errno), MAXPATHLEN);
+	}
+
+	return std::string(cwdtmp);
+}
+
+void utils::remove_soft_hyphens(std::string& text) {
+	/* Remove all soft-hyphens as they can behave unpredictably (see
+	 * https://github.com/akrennmair/newsbeuter/issues/259#issuecomment-259609490)
+	 * and inadvertently render as hyphens */
+
+	std::string::size_type pos = text.find("\u00AD");
+	while (pos != std::string::npos) {
+		text.erase(pos, 2);
+		pos = text.find("\u00AD", pos);
+	}
 }
 
 

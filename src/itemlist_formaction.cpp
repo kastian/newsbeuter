@@ -10,6 +10,7 @@
 
 #include <cassert>
 #include <sstream>
+#include <cstdio>
 
 #include <langinfo.h>
 
@@ -18,10 +19,12 @@
 namespace newsbeuter {
 
 itemlist_formaction::itemlist_formaction(view * vv, std::string formstr)
-	: list_formaction(vv,formstr), apply_filter(false), show_searchresult(false),
+	: list_formaction(vv,formstr), pos(0), apply_filter(false),
+	  show_searchresult(false),
 	  search_dummy_feed(new rss_feed(v->get_ctrl()->get_cache())),
 	  set_filterpos(false), filterpos(0), rxman(0), old_width(0),
-	  old_itempos(-1), old_sort_order(""), invalidated(false)
+	  old_itempos(-1), old_sort_order(""), invalidated(false),
+	  invalidation_mode(InvalidationMode::COMPLETE)
 {
 	assert(true==m.parse(FILTER_UNREAD_ITEMS));
 }
@@ -732,10 +735,19 @@ std::string itemlist_formaction::item2formatted_line(
 	fmt.register_fmt('f', gen_flags(item.first));
 	fmt.register_fmt('D', gen_datestr(item.first->pubDate_timestamp(), datetime_format));
 	if (feed->rssurl() != item.first->feedurl() && item.first->get_feedptr() != nullptr) {
-		fmt.register_fmt('T', utils::replace_all(item.first->get_feedptr()->title(), "<", "<>"));
+		auto feedtitle = utils::replace_all(item.first->get_feedptr()->title(), "<", "<>");
+		utils::remove_soft_hyphens(feedtitle);
+		fmt.register_fmt('T', feedtitle);
 	}
-	fmt.register_fmt('t', utils::replace_all(item.first->title(), "<", "<>"));
-	fmt.register_fmt('a', utils::replace_all(item.first->author(), "<", "<>"));
+
+	auto itemtitle = utils::replace_all(item.first->title(), "<", "<>");
+	utils::remove_soft_hyphens(itemtitle);
+	fmt.register_fmt('t', itemtitle);
+
+	auto itemauthor = utils::replace_all(item.first->author(), "<", "<>");
+	utils::remove_soft_hyphens(itemauthor);
+	fmt.register_fmt('a', itemauthor);
+
 	fmt.register_fmt('L', item.first->length());
 
 	if (rxman) {
@@ -777,10 +789,13 @@ void itemlist_formaction::set_head(const std::string& s, unsigned int unread, un
 	fmt.register_fmt('N', PROGRAM_NAME);
 	fmt.register_fmt('V', PROGRAM_VERSION);
 
-	fmt.register_fmt('u', utils::to_string<unsigned int>(unread));
-	fmt.register_fmt('t', utils::to_string<unsigned int>(total));
+	fmt.register_fmt('u', std::to_string(unread));
+	fmt.register_fmt('t', std::to_string(total));
 
-	fmt.register_fmt('T', s);
+	auto feedtitle = s;
+	utils::remove_soft_hyphens(feedtitle);
+	fmt.register_fmt('T', feedtitle);
+
 	fmt.register_fmt('U', utils::censor_url(url));
 
 	if (!show_searchresult) {
@@ -798,13 +813,13 @@ bool itemlist_formaction::jump_to_previous_unread_item(bool start_with_last) {
 	for (int i=(start_with_last?itempos:(itempos-1)); i>=0; --i) {
 		LOG(level::DEBUG, "itemlist_formaction::jump_to_previous_unread_item: visible_items[%u] unread = %s", i, visible_items[i].first->unread() ? "true" : "false");
 		if (visible_items[i].first->unread()) {
-			f->set("itempos", utils::to_string<unsigned int>(i));
+			f->set("itempos", std::to_string(i));
 			return true;
 		}
 	}
 	for (int i=visible_items.size()-1; i>=itempos; --i) {
 		if (visible_items[i].first->unread()) {
-			f->set("itempos", utils::to_string<unsigned int>(i));
+			f->set("itempos", std::to_string(i));
 			return true;
 		}
 	}
@@ -824,7 +839,7 @@ bool itemlist_formaction::jump_to_random_unread_item() {
 		for (;;) {
 			unsigned int pos = utils::get_random_value(visible_items.size());
 			if (visible_items[pos].first->unread()) {
-				f->set("itempos", utils::to_string<unsigned int>(pos));
+				f->set("itempos", std::to_string(pos));
 				break;
 			}
 		}
@@ -838,14 +853,14 @@ bool itemlist_formaction::jump_to_next_unread_item(bool start_with_first) {
 	for (unsigned int i=(start_with_first?itempos:(itempos+1)); i<visible_items.size(); ++i) {
 		LOG(level::DEBUG, "itemlist_formaction::jump_to_next_unread_item: i = %u", i);
 		if (visible_items[i].first->unread()) {
-			f->set("itempos", utils::to_string<unsigned int>(i));
+			f->set("itempos", std::to_string(i));
 			return true;
 		}
 	}
 	for (unsigned int i=0; i<=itempos&&i<visible_items.size(); ++i) {
 		LOG(level::DEBUG, "itemlist_formaction::jump_to_next_unread_item: i = %u", i);
 		if (visible_items[i].first->unread()) {
-			f->set("itempos", utils::to_string<unsigned int>(i));
+			f->set("itempos", std::to_string(i));
 			return true;
 		}
 	}
@@ -860,7 +875,7 @@ bool itemlist_formaction::jump_to_previous_item(bool start_with_last) {
 	int i=(start_with_last?itempos:(itempos-1));
 	if (i>=0) {
 		LOG(level::DEBUG, "itemlist_formaction::jump_to_previous_item: visible_items[%u]", i);
-		f->set("itempos", utils::to_string<int>(i));
+		f->set("itempos", std::to_string(i));
 		return true;
 	}
 	return false;
@@ -872,7 +887,7 @@ bool itemlist_formaction::jump_to_next_item(bool start_with_first) {
 	unsigned int i=(start_with_first?itempos:(itempos+1));
 	if (i<visible_items.size()) {
 		LOG(level::DEBUG, "itemlist_formaction::jump_to_next_item: i = %u", i);
-		f->set("itempos", utils::to_string<unsigned int>(i));
+		f->set("itempos", std::to_string(i));
 		return true;
 	}
 	return false;
@@ -904,7 +919,7 @@ void itemlist_formaction::handle_cmdline_num(unsigned int idx) {
 		if (i == -1) {
 			v->show_error(_("Position not visible!"));
 		} else {
-			f->set("itempos", utils::to_string<unsigned int>(i));
+			f->set("itempos", std::to_string(i));
 		}
 	} else {
 		v->show_error(_("Invalid position!"));
@@ -1025,7 +1040,7 @@ void itemlist_formaction::prepare_set_filterpos() {
 		unsigned int i=0;
 		for (auto item : visible_items) {
 			if (item.second == filterpos) {
-				f->set("itempos", utils::to_string<unsigned int>(i));
+				f->set("itempos", std::to_string(i));
 				return;
 			}
 			i++;
@@ -1048,8 +1063,11 @@ std::string itemlist_formaction::title() {
 	} else {
 		if (feed->rssurl().substr(0,6) == "query:")
 			return strprintf::fmt(_("Query Feed - %s"), feed->rssurl().substr(6,feed->rssurl().length()-6));
-		else
-			return strprintf::fmt(_("Article List - %s"), feed->title());
+		else {
+			auto feedtitle = feed->title();
+			utils::remove_soft_hyphens(feedtitle);
+			return strprintf::fmt(_("Article List - %s"), feedtitle);
+		}
 	}
 }
 

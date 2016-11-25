@@ -72,9 +72,6 @@ class utils {
 
 		static std::wstring utf8str2wstr(const std::string& utf8str);
 
-		template<class T>
-		static std::string to_string(T var);
-
 		static std::string absolute_url(const std::string& url, const std::string& link);
 
 		static std::string get_useragent(configcontainer * cfgcont);
@@ -136,6 +133,13 @@ class utils {
 				const std::string& pathname, mode_t mode = 0755);
 
 		static std::string make_title(const std::string& url);
+
+		static int run_interactively(
+				const std::string& command, const std::string& caller);
+
+		static std::string getcwd();
+
+		static void remove_soft_hyphens(std::string& text);
 
 	private:
 		static void append_escapes(std::string& str, char c);

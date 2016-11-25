@@ -19,7 +19,8 @@ namespace newsbeuter {
  */
 
 select_formaction::select_formaction(view * vv, std::string formstr)
-	: formaction(vv, formstr) { }
+	: formaction(vv, formstr), quit(false), type(selection_type::TAG)
+{ }
 
 select_formaction::~select_formaction() { }
 
@@ -27,7 +28,7 @@ void select_formaction::handle_cmdline(const std::string& cmd) {
 	unsigned int idx = 0;
 	if (1==sscanf(cmd.c_str(),"%u",&idx)) {
 		if (idx > 0 && idx <= ((type == selection_type::TAG) ? tags.size() : filters.size())) {
-			f->set("tagpos", utils::to_string<unsigned int>(idx - 1));
+			f->set("tagpos", std::to_string(idx - 1));
 		}
 	} else {
 		formaction::handle_cmdline(cmd);

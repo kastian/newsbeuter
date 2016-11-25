@@ -6,6 +6,8 @@
 #include <utils.h>
 #include <strprintf.h>
 
+#include <cstdio>
+
 namespace newsbeuter {
 
 dialogs_formaction::dialogs_formaction(view * vv, std::string formstr) : formaction(vv, formstr), update_list(true) {
@@ -94,7 +96,7 @@ void dialogs_formaction::handle_cmdline(const std::string& cmd) {
 	unsigned int idx = 0;
 	if (1==sscanf(cmd.c_str(), "%u", &idx)) {
 		if (idx <= v->formaction_stack_size()) {
-			f->set("dialogpos", utils::to_string<unsigned int>(idx - 1));
+			f->set("dialogpos", std::to_string(idx - 1));
 		} else {
 			v->show_error(_("Invalid position!"));
 		}
