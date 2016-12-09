@@ -4,122 +4,135 @@
 
 using namespace newsbeuter;
 
-TEST_CASE("Tokenizers behave correctly", "[utils]") {
+TEST_CASE("tokenize() extracts tokens separated by given delimiters",
+          "[utils]")
+{
 	std::vector<std::string> tokens;
 
-	SECTION("utils::tokenize()") {
+	SECTION("Default delimiters") {
 		tokens = utils::tokenize("as df qqq");
-		// tokenize results in 3 tokens
 		REQUIRE(tokens.size() == 3);
-		// tokenize of as df qqq
 		REQUIRE(tokens[0] == "as");
 		REQUIRE(tokens[1] == "df");
 		REQUIRE(tokens[2] == "qqq");
 
 		tokens = utils::tokenize(" aa ");
-		// tokenize of ' aa ' resulted in one token
 		REQUIRE(tokens.size() == 1);
-		// first token is aa
 		REQUIRE(tokens[0] == "aa");
 
 		tokens = utils::tokenize("	");
-		// tokenize of tab resulted in 0 tokens
 		REQUIRE(tokens.size() == 0);
 
 		tokens = utils::tokenize("");
-		// tokenize of empty string resulted in 0 tokens
 		REQUIRE(tokens.size() == 0);
 	}
 
-	SECTION("utils::tokenize_spaced()") {
-		tokens = utils::tokenize_spaced("a b");
-		// tokenize_spaced of a b resulted in 3 tokens
-		REQUIRE(tokens.size() == 3);
-		// middle token is space
-		REQUIRE(tokens[1] == " ");
-
-		tokens = utils::tokenize_spaced(" a\t b ");
-		// tokenize_spaced resulted in 5 tokens
-		REQUIRE(tokens.size() == 5);
-		// first token is space
-		REQUIRE(tokens[0] == " ");
-		// second token is a
-		REQUIRE(tokens[1] == "a");
-		// third token is a tab followed by a space
-		REQUIRE(tokens[2] == "\t ");
-		// fourth token is b
-		REQUIRE(tokens[3] == "b");
-		// fifth token is space
-		REQUIRE(tokens[4] == " ");
-	}
-
-	SECTION("utils::tokenize_quoted()") {
-		SECTION("Simple case") {
-			tokens = utils::tokenize_quoted("asdf \"foobar bla\" \"foo\\r\\n\\tbar\"");
-			// tokenize_quoted resulted in 3 tokens
-			REQUIRE(tokens.size() == 3);
-			// first token is asdf
-			REQUIRE(tokens[0] == "asdf");
-			// second token is foobar bla
-			REQUIRE(tokens[1] == "foobar bla");
-			// third token contains \\r\\n\\t
-			REQUIRE(tokens[2] == "foo\r\n\tbar");
-
-			tokens = utils::tokenize_quoted("  \"foo \\\\xxx\"\t\r \" \"");
-			// tokenize_quoted resulted in 2 tokens
-			REQUIRE(tokens.size() == 2);
-			// first token contains "foo \\xxx"
-			REQUIRE(tokens[0] == "foo \\xxx");
-			// second token is space
-			REQUIRE(tokens[1] == " ");
-		}
-
-		SECTION("Unbalanced quotes") {
-			tokens = utils::tokenize_quoted("\"\\\\");
-			// tokenize_quoted with unbalanced quotes resulted in 1 token
-			REQUIRE(tokens.size() == 1);
-			// first token is backslash
-			REQUIRE(tokens[0] == "\\");
-		}
-
-		SECTION("Several sequential backslashes") {
-			// tokenize_quoted with several \\ sequences directly appended
-			tokens = utils::tokenize_quoted("\"\\\\\\\\");
-			// tokenize_quoted escape test 1 resulted in 1 token
-			REQUIRE(tokens.size() == 1);
-			// tokenize_quoted escape test 1 token is two backslashes
-			REQUIRE(tokens[0] == "\\\\");
-
-			tokens = utils::tokenize_quoted("\"\\\\\\\\\\\\");
-			// tokenize_quoted escape test 2 resulted in 1 token
-			REQUIRE(tokens.size() == 1);
-			// tokenize_quoted escape test 2 token is three backslashes
-			REQUIRE(tokens[0] == "\\\\\\");
-
-			tokens = utils::tokenize_quoted("\"\\\\\\\\\"");
-			// tokenize_quoted escape test 3 resulted in 1 token
-			REQUIRE(tokens.size() == 1);
-			// tokenize_quoted escape test 3 token is two backslashes
-			REQUIRE(tokens[0] == "\\\\");
-
-			tokens = utils::tokenize_quoted("\"\\\\\\\\\\\\\"");
-			// tokenize_quoted escape test 4 resulted in 1 token
-			REQUIRE(tokens.size() == 1);
-			// tokenize_quoted escape test 4 token is three backslashes
-			REQUIRE(tokens[0] == "\\\\\\");
-		}
-
-		SECTION("Escaped backticks should NOT be touched") {
-			tokens = utils::tokenize_quoted("asdf \"\\`foobar `bla`\\`\"");
-
-			REQUIRE(tokens.size() == 2);
-			REQUIRE(tokens[0] == "asdf");
-			REQUIRE(tokens[1] == "\\`foobar `bla`\\`");
-		}
+	SECTION("Splitting by tabulation characters") {
+		tokens = utils::tokenize("hello world\thow are you?", "\t");
+		REQUIRE(tokens.size() == 2);
+		REQUIRE(tokens[0] == "hello world");
+		REQUIRE(tokens[1] == "how are you?");
 	}
 }
 
-TEST_CASE("consolidate_whitespace replaces multiple consecutine"
+TEST_CASE("tokenize_spaced() splits string into runs of delimiter characters "
+        "interspersed with runs of non-delimiter chars", "[utils]")
+{
+	std::vector<std::string> tokens;
+
+	SECTION("Default delimiters include space and tab") {
+		tokens = utils::tokenize_spaced("a b");
+		REQUIRE(tokens.size() == 3);
+		REQUIRE(tokens[1] == " ");
+
+		tokens = utils::tokenize_spaced(" a\t b ");
+		REQUIRE(tokens.size() == 5);
+		REQUIRE(tokens[0] == " ");
+		REQUIRE(tokens[1] == "a");
+		REQUIRE(tokens[2] == "\t ");
+		REQUIRE(tokens[3] == "b");
+		REQUIRE(tokens[4] == " ");
+	}
+
+	SECTION("Comma-separated values containing spaces and tabs") {
+		tokens = utils::tokenize_spaced("123,John Doe,\t\t$8", ",");
+		REQUIRE(tokens.size() == 5);
+		REQUIRE(tokens[0] == "123");
+		REQUIRE(tokens[1] == ",");
+		REQUIRE(tokens[2] == "John Doe");
+		REQUIRE(tokens[3] == ",");
+		REQUIRE(tokens[4] == "\t\t$8");
+	}
+}
+
+TEST_CASE("tokenize_quoted() splits string on delimiters, treating strings "
+          "inside double quotes as single token", "[utils]")
+{
+	std::vector<std::string> tokens;
+
+	SECTION("Default delimiters include spaces, newlines and tabs") {
+		tokens = utils::tokenize_quoted("asdf \"foobar bla\" \"foo\\r\\n\\tbar\"");
+		REQUIRE(tokens.size() == 3);
+		REQUIRE(tokens[0] == "asdf");
+		REQUIRE(tokens[1] == "foobar bla");
+		REQUIRE(tokens[2] == "foo\r\n\tbar");
+
+		tokens = utils::tokenize_quoted("  \"foo \\\\xxx\"\t\r \" \"");
+		REQUIRE(tokens.size() == 2);
+		REQUIRE(tokens[0] == "foo \\xxx");
+		REQUIRE(tokens[1] == " ");
+	}
+}
+
+TEST_CASE("tokenize_quoted() implicitly closes quotes at the end of the string",
+          "[utils]")
+{
+	std::vector<std::string> tokens;
+
+	tokens = utils::tokenize_quoted("\"\\\\");
+	REQUIRE(tokens.size() == 1);
+	REQUIRE(tokens[0] == "\\");
+
+	tokens = utils::tokenize_quoted("\"\\\\\" and \"some other stuff");
+	REQUIRE(tokens.size() == 3);
+	REQUIRE(tokens[0] == "\\");
+	REQUIRE(tokens[1] == "and");
+	REQUIRE(tokens[2] == "some other stuff");
+}
+
+TEST_CASE("tokenize_quoted() interprets \"\\\\\" as escaped backslash and puts "
+          "single backslash in output", "[utils]")
+{
+	std::vector<std::string> tokens;
+
+	tokens = utils::tokenize_quoted("\"\\\\\\\\");
+	REQUIRE(tokens.size() == 1);
+	REQUIRE(tokens[0] == "\\\\");
+
+	tokens = utils::tokenize_quoted("\"\\\\\\\\\\\\");
+	REQUIRE(tokens.size() == 1);
+	REQUIRE(tokens[0] == "\\\\\\");
+
+	tokens = utils::tokenize_quoted("\"\\\\\\\\\"");
+	REQUIRE(tokens.size() == 1);
+	REQUIRE(tokens[0] == "\\\\");
+
+	tokens = utils::tokenize_quoted("\"\\\\\\\\\\\\\"");
+	REQUIRE(tokens.size() == 1);
+	REQUIRE(tokens[0] == "\\\\\\");
+}
+
+TEST_CASE("tokenize_quoted() doesn't un-escape escaped backticks", "[utils]") {
+	std::vector<std::string> tokens;
+
+	tokens = utils::tokenize_quoted("asdf \"\\`foobar `bla`\\`\"");
+
+	REQUIRE(tokens.size() == 2);
+	REQUIRE(tokens[0] == "asdf");
+	REQUIRE(tokens[1] == "\\`foobar `bla`\\`");
+}
+
+TEST_CASE("consolidate_whitespace replaces multiple consecutive"
           "whitespace with a single space", "[utils]") {
 	REQUIRE(utils::consolidate_whitespace("LoremIpsum") == "LoremIpsum");
 	REQUIRE(utils::consolidate_whitespace("Lorem Ipsum") == "Lorem Ipsum");
@@ -129,24 +142,6 @@ TEST_CASE("consolidate_whitespace replaces multiple consecutine"
 	REQUIRE(utils::consolidate_whitespace("") == "");
 
 	REQUIRE(utils::consolidate_whitespace("  Lorem|||Ipsum||", "|") == "  Lorem Ipsum ");
-}
-
-TEST_CASE("String conversions behave correctly", "[utils]") {
-	SECTION("Conversion from wstring to string") {
-		std::string s1 = utils::wstr2str(L"This is a simple string. Let's have a look at the outcome...");
-		REQUIRE(s1 == "This is a simple string. Let's have a look at the outcome...");
-
-		std::string s2 = utils::wstr2str(L"");
-		REQUIRE(s2 == "");
-	}
-
-	SECTION("Conversion from string to wstring") {
-		std::wstring w1 = utils::str2wstr("And that's another simple string.");
-		REQUIRE(w1 == L"And that's another simple string.");
-
-		std::wstring w2 = utils::str2wstr("");
-		REQUIRE(w2 == L"");
-	}
 }
 
 TEST_CASE("get_command_output()", "[utils]") {
@@ -192,113 +187,73 @@ TEST_CASE("partition_index()", "[utils]") {
 
 	SECTION("[0, 9] into 2") {
 		partitions = utils::partition_indexes(0, 9, 2);
-		// partitioning of [0,9] in 2 parts produced 2 parts
 		REQUIRE(partitions.size() == 2);
-		// first partition start is 0
 		REQUIRE(partitions[0].first == 0);
-		// first partition end is 4
 		REQUIRE(partitions[0].second == 4);
-		// second partition start is 5
 		REQUIRE(partitions[1].first == 5);
-		// second partition end is 9
 		REQUIRE(partitions[1].second == 9);
 	}
 
 	SECTION("[0, 10] into 3") {
 		partitions = utils::partition_indexes(0, 10, 3);
-		// partitioning of [0,10] in 3 parts produced 3 parts
 		REQUIRE(partitions.size() == 3);
-		// first partition start is 0
 		REQUIRE(partitions[0].first == 0);
-		// first partition end is 2
 		REQUIRE(partitions[0].second == 2);
-		// second partition start is 3
 		REQUIRE(partitions[1].first == 3);
-		// second partition end is 5
 		REQUIRE(partitions[1].second == 5);
-		// third partition start is 6
 		REQUIRE(partitions[2].first == 6);
-		// third partition end is 10
 		REQUIRE(partitions[2].second == 10);
 	}
 
 	SECTION("[0, 11] into 3") {
 		partitions = utils::partition_indexes(0, 11, 3);
-		// partitioning of [0,11] in 3 parts produced 3 parts
 		REQUIRE(partitions.size() == 3);
-		// first partition start is 0
 		REQUIRE(partitions[0].first == 0);
-		// first partition end is 3
 		REQUIRE(partitions[0].second == 3);
-		// second partition start is 4
 		REQUIRE(partitions[1].first == 4);
-		// second partition end is 7
 		REQUIRE(partitions[1].second == 7);
-		// third partition start is 8
 		REQUIRE(partitions[2].first == 8);
-		// third partition end is 11
 		REQUIRE(partitions[2].second == 11);
 	}
 
 	SECTION("[0, 199] into 200") {
 		partitions = utils::partition_indexes(0, 199, 200);
-		// partitioning of [0,199] in 200 parts produced 200 parts
 		REQUIRE(partitions.size() == 200);
 	}
 
 	SECTION("[0, 103] into 1") {
 		partitions = utils::partition_indexes(0, 103, 1);
-		// partitioning of [0,103] in 1 partition produced 1 partition
 		REQUIRE(partitions.size() == 1);
-		// first partition start is 0
 		REQUIRE(partitions[0].first == 0);
-		// first partition end is 103
 		REQUIRE(partitions[0].second == 103);
 	}
 }
 
 TEST_CASE("censor_url()", "[utils]") {
-	// censor empty string
 	REQUIRE(utils::censor_url("") == "");
-	// censor foobar
 	REQUIRE(utils::censor_url("foobar") == "foobar");
-	// censor foobar: url with no authinfo
 	REQUIRE(utils::censor_url("foobar://xyz/") == "foobar://xyz/");
 
-	// censor http url with no authinfo
 	REQUIRE(utils::censor_url("http://newsbeuter.org/") == "http://newsbeuter.org/");
-	// censor https url with no authinfo
 	REQUIRE(utils::censor_url("https://newsbeuter.org/") == "https://newsbeuter.org/");
 
-	// censor http url with empty authinfo
 	REQUIRE(utils::censor_url("http://@newsbeuter.org/") == "http://*:*@newsbeuter.org/");
-	// censor https url with empty authinfo
 	REQUIRE(utils::censor_url("https://@newsbeuter.org/") == "https://*:*@newsbeuter.org/");
 
-	// censor http url with authinfo
 	REQUIRE(utils::censor_url("http://foo:bar@newsbeuter.org/") == "http://*:*@newsbeuter.org/");
-	// censor https url with authinfo
 	REQUIRE(utils::censor_url("https://foo:bar@newsbeuter.org/") == "https://*:*@newsbeuter.org/");
 
-	// censor http url with username-only authinfo
 	REQUIRE(utils::censor_url("http://aschas@newsbeuter.org/") == "http://*:*@newsbeuter.org/");
-	// censor https url with username-only authinfo
 	REQUIRE(utils::censor_url("https://aschas@newsbeuter.org/") == "https://*:*@newsbeuter.org/");
 
-	// censor xxx url with username-only authinfo
 	REQUIRE(utils::censor_url("xxx://aschas@newsbeuter.org/") == "xxx://*:*@newsbeuter.org/");
 
-	// censor http url with no authinfo and no trailing slash
 	REQUIRE(utils::censor_url("http://foobar") == "http://foobar");
-	// censor https url with no authinfo and no trailing slash
 	REQUIRE(utils::censor_url("https://foobar") == "https://foobar");
 
-	// censor http url with username-only authinfo and no trailing slash
 	REQUIRE(utils::censor_url("http://aschas@host") == "http://*:*@host");
-	// censor http url with username-only authinfo and no trailing slash
 	REQUIRE(utils::censor_url("https://aschas@host") == "https://*:*@host");
 
-	// censor query feed
 	REQUIRE(utils::censor_url("query:name:age between 1:10") == "query:name:age between 1:10");
 }
 
@@ -328,13 +283,10 @@ TEST_CASE("to_u()", "[utils]") {
 }
 
 TEST_CASE("strwidth()", "[utils]") {
-	// empty string is 0 colums wide
 	REQUIRE(utils::strwidth("") == 0);
 
-	// xx is 2 columns wide
 	REQUIRE(utils::strwidth("xx") == 2);
 
-	// character U+F91F is 2 columns wide
 	REQUIRE(utils::strwidth(utils::wstr2str(L"\uF91F")) == 2);
 }
 
